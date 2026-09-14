@@ -1,0 +1,30 @@
+Política de devoluciones y garantía — Panadería Dulce Aroma
+
+Documento de ejemplo para probar el RAG básico de Standard. En un pedido
+real, aquí iría el PDF/doc real del cliente (catálogo extendido, políticas,
+manual interno, etc.).
+
+1. Devoluciones de productos frescos
+Por tratarse de productos perecederos, no aceptamos devoluciones de pan,
+pasteles o postres una vez entregados, salvo que el producto presente un
+defecto de fabricación evidente (por ejemplo, ingredientes en mal estado).
+En ese caso, contáctanos dentro de las 2 horas posteriores a la entrega con
+una foto del producto y te lo reponemos sin costo o te devolvemos el pago,
+según prefieras.
+
+2. Pedidos personalizados y tortas de evento
+Los pedidos personalizados (tortas, mesas de postres) requieren un anticipo
+del 50% al confirmar el pedido. Este anticipo no es reembolsable si se
+cancela con menos de 48 horas de anticipación a la fecha de entrega. Con
+más de 48 horas de anticipación, se reembolsa el 100% del anticipo.
+
+3. Errores en el pedido
+Si el pedido entregado no corresponde a lo solicitado (producto equivocado,
+falta algún artículo), lo resolvemos sin costo adicional: reposición
+inmediata o reembolso del monto correspondiente a lo faltante/incorrecto.
+
+4. Alérgenos
+Nuestra cocina procesa gluten, frutos secos, huevo y lácteos. Aunque
+contamos con línea sin gluten y vegana, no podemos garantizar ausencia
+total de trazas cruzadas. Si tienes una alergia severa, coméntanoslo antes
+de confirmar tu pedido para evaluar el caso con el equipo de cocina.

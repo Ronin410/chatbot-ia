@@ -1,10 +1,8 @@
 import type { Request, Response } from "express";
-import type { BusinessConfig } from "../../config/types";
 import type { ChatMessage } from "../../ai/types";
-import { buildSystemPrompt } from "../../ai/systemPrompt";
-import { selectAiClient } from "../../ai/selectAiClient";
+import type { createChatEngine } from "../chatEngine";
 
-/** Historial corto máximo que se acepta por request en Basic (sin persistencia). */
+/** Historial corto máximo que se acepta por request (Basic: sin persistencia entre sesiones). */
 const MAX_HISTORY_MESSAGES = 10;
 
 interface ChatRequestBody {
@@ -13,13 +11,13 @@ interface ChatRequestBody {
 }
 
 /**
- * Handler del endpoint POST /chat.
- * Basic: no hay memoria entre sesiones; el cliente (widget) es responsable
- * de reenviar el historial corto de la conversación actual en cada request.
+ * Handler del endpoint POST /chat (canal web).
+ * El cliente (widget) es responsable de reenviar el historial corto de la
+ * conversación actual en cada request; el servidor no lo persiste (Basic).
+ * Standard+ además registra la conversación si se configura un
+ * `conversationStore` en el chatEngine.
  */
-export function createChatController(config: BusinessConfig) {
-  const aiClient = selectAiClient(config.aiProvider);
-
+export function createChatController(chatEngine: ReturnType<typeof createChatEngine>) {
   return async function handleChat(req: Request, res: Response): Promise<void> {
     const body = req.body as ChatRequestBody;
     const message = typeof body.message === "string" ? body.message.trim() : "";
@@ -30,19 +28,13 @@ export function createChatController(config: BusinessConfig) {
     }
 
     const history = sanitizeHistory(body.history);
-    const systemPrompt = buildSystemPrompt(config);
+    const { reply, usedFallback } = await chatEngine.generateReply({
+      message,
+      history,
+      channel: "web",
+    });
 
-    try {
-      const result = await aiClient.complete({
-        systemPrompt,
-        history,
-        userMessage: message,
-      });
-      res.json({ reply: result.reply });
-    } catch (error) {
-      console.error("[/chat] Error al llamar al modelo de IA:", error);
-      res.status(200).json({ reply: config.errorMessage, error: true });
-    }
+    res.json(usedFallback ? { reply, error: true } : { reply });
   };
 }
 

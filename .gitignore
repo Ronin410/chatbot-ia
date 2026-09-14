@@ -3,3 +3,9 @@ dist/
 .env
 *.log
 .DS_Store
+
+# Datos generados en runtime (Standard): índice RAG y log de conversaciones.
+data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
