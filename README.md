@@ -51,6 +51,10 @@ para el detalle de cada uno (sigue todo funcionando igual aquí).
   (`src/ai/systemPrompt.ts`).
 - **Documentación de mantenimiento** para los 15 días de soporte
   post-entrega: [`docs/mantenimiento.md`](./docs/mantenimiento.md).
+- **Diagramas de arquitectura**: flujo, proceso de confirmación e
+  infraestructura, con las piezas marcadas por nivel:
+  [`docs/arquitectura.html`](./docs/arquitectura.html) (ábrelo directo en
+  el navegador).
 
 Si `DATABASE_URL` no está configurado, el servidor sigue arrancando y
 funcionando igual que Standard (sin acciones) — Premium es aditivo, no
