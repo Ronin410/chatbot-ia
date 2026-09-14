@@ -134,6 +134,13 @@ Edita `src/config/business-config.json` (o crea uno nuevo y apunta
 
 ---
 
+## Arquitectura
+
+[`docs/arquitectura.html`](./docs/arquitectura.html) — diagramas de flujo, de
+proceso (confirmación antes de escribir en la base) y de infraestructura,
+con las piezas marcadas según en qué nivel del paquete se activan. Ábrelo
+directo en el navegador (no necesita servidor).
+
 ## Nivel Premium (no incluido en esta rama)
 
 Function calling (`crear_cita`, `consultar_pedido`), base de datos real en
