@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import type { ActionDefinition } from "./types";
+import type { ActionDefinition, OwnerNotifier } from "./types";
 
 interface CrearCitaParams {
   nombreCliente: string;
@@ -28,8 +28,15 @@ type CrearCitaResult =
  * `confirmado` no es explícitamente `true`. Este es el mecanismo de
  * confirmación que pide el nivel Premium antes de ejecutar acciones que
  * no se pueden deshacer solas.
+ *
+ * `notifyOwner` (opcional): si se provee, se avisa al dueño del negocio
+ * (no al cliente) cada vez que una cita queda confirmada de verdad — ver
+ * cómo se arma en server.ts a partir de `business-config.json.ownerWhatsapp`.
  */
-export function createCrearCitaAction(pool: Pool): ActionDefinition<CrearCitaParams, CrearCitaResult> {
+export function createCrearCitaAction(
+  pool: Pool,
+  notifyOwner?: OwnerNotifier
+): ActionDefinition<CrearCitaParams, CrearCitaResult> {
   return {
     name: "crear_cita",
     description:
@@ -73,8 +80,24 @@ export function createCrearCitaAction(pool: Pool): ActionDefinition<CrearCitaPar
          RETURNING id`,
         [nombreCliente, telefono, servicio, fecha, hora]
       );
+      const citaId = result.rows[0].id;
 
-      return { status: "confirmada", citaId: result.rows[0].id };
+      if (notifyOwner) {
+        try {
+          await notifyOwner(
+            `🔔 Nueva cita agendada (#${citaId})\n` +
+              `Cliente: ${nombreCliente} (${telefono})\n` +
+              `Servicio: ${servicio}\n` +
+              `Fecha: ${fecha} ${hora}`
+          );
+        } catch (error) {
+          // Una notificación fallida no debe romper la respuesta al cliente:
+          // la cita ya quedó agendada de verdad, eso es lo que importa.
+          console.error("[crear_cita] No se pudo notificar al dueño del negocio:", error);
+        }
+      }
+
+      return { status: "confirmada", citaId };
     },
   };
 }

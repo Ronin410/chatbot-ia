@@ -49,5 +49,6 @@
   "fallbackMessage": "No tengo esa información en este momento. ¿Quieres que te contacte alguien del equipo?",
   "errorMessage": "Estamos teniendo un problema técnico en este momento. Por favor intenta de nuevo en unos minutos.",
   "multiLanguage": true,
-  "whatsappGreeting": "¡Hola! Soy el asistente virtual de Panadería Dulce Aroma. ¿En qué puedo ayudarte hoy?"
+  "whatsappGreeting": "¡Hola! Soy el asistente virtual de Panadería Dulce Aroma. ¿En qué puedo ayudarte hoy?",
+  "ownerWhatsapp": "+521234567890"
 }

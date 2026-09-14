@@ -49,6 +49,17 @@ para el detalle de cada uno (sigue todo funcionando igual aquí).
   necesita confirmación. La política completa se le explica al modelo en
   el prompt de sistema cuando hay acciones activas
   (`src/ai/systemPrompt.ts`).
+- **Notificación al dueño por WhatsApp**: si `business-config.json` tiene
+  `ownerWhatsapp` y el canal de WhatsApp está activo, cada vez que se
+  confirma una cita real se le avisa por WhatsApp al dueño (no al
+  cliente) — sin esto tendría que estar revisando la base a mano para
+  enterarse de pedidos nuevos (`src/actions/crearCita.ts`).
+- **Ver citas y pedidos sin usar SQL**: `GET /admin/citas` y
+  `GET /admin/pedidos` (mismo `ADMIN_TOKEN` que el export de
+  conversaciones) devuelven la lista en CSV o JSON — pensado para que el
+  dueño del negocio (o quien le dé soporte) pueda abrir el link y ver
+  todo en una hoja de cálculo, sin tocar `psql`
+  (`src/db/postgres/adminQueries.ts`).
 - **Documentación de mantenimiento** para los 15 días de soporte
   post-entrega: [`docs/mantenimiento.md`](./docs/mantenimiento.md).
 - **Diagramas de arquitectura**: flujo, proceso de confirmación e
@@ -122,9 +133,12 @@ Mismo `business-config.json` que Standard, con `"level": "premium"`:
   "faq": [{ "question": "...", "answer": "..." }],
   "fallbackMessage": "...",
   "errorMessage": "...",
-  "whatsappGreeting": "..."
+  "whatsappGreeting": "...",
+  "ownerWhatsapp": "+521234567890"
 }
 ```
+
+`ownerWhatsapp` es opcional — sin él, las citas se siguen agendando igual, solo que sin avisarle al dueño por WhatsApp.
 
 ---
 

@@ -1,26 +1,30 @@
 import type { Pool } from "pg";
 import type { ToolDefinition } from "../ai/types";
-import type { ActionDefinition, ActionRegistry } from "./types";
+import type { ActionDefinition, ActionRegistry, OwnerNotifier } from "./types";
 import { getPgPool } from "../db/postgres/pool";
 import { createCrearCitaAction } from "./crearCita";
 import { createConsultarPedidoAction } from "./consultarPedido";
 
-export type { ActionDefinition, ActionRegistry } from "./types";
+export type { ActionDefinition, ActionRegistry, OwnerNotifier } from "./types";
 
 /**
  * Registro de acciones/tools de Premium: `crear_cita` (irreversible, pide
  * confirmación) y `consultar_pedido` (solo lectura). Para agregar una
  * acción nueva: crear su archivo (ver crearCita.ts/consultarPedido.ts
  * como plantilla) y registrarla aquí.
+ *
+ * `notifyOwner` (opcional): se le pasa a crear_cita para avisarle al
+ * dueño del negocio por WhatsApp cuando se agenda una cita real — ver
+ * cómo se arma en server.ts.
  */
-export function createActionRegistry(pool: Pool = getPgPool()): ActionRegistry {
+export function createActionRegistry(pool: Pool = getPgPool(), notifyOwner?: OwnerNotifier): ActionRegistry {
   const actions = new Map<string, ActionDefinition>();
 
   function register(action: ActionDefinition): void {
     actions.set(action.name, action);
   }
 
-  register(createCrearCitaAction(pool));
+  register(createCrearCitaAction(pool, notifyOwner));
   register(createConsultarPedidoAction(pool));
 
   return {

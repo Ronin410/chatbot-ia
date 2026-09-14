@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import Database from "better-sqlite3";
 import type { ConversationLogEntry, ConversationStore, StoredConversation } from "./types";
+import { rowsToCsv } from "./csv";
 
 const DEFAULT_DB_PATH = path.resolve(process.cwd(), "data", "conversations.sqlite");
 
@@ -48,19 +49,7 @@ export function createSqliteConversationStore(dbPath?: string): ConversationStor
         return JSON.stringify(rows, null, 2);
       }
 
-      const header = "id,timestamp,channel,message,reply";
-      const csvRows = rows.map((row) =>
-        [row.id, row.timestamp, row.channel, row.message, row.reply].map(csvEscape).join(",")
-      );
-      return [header, ...csvRows].join("\n");
+      return rowsToCsv(rows, ["id", "timestamp", "channel", "message", "reply"]);
     },
   };
-}
-
-function csvEscape(value: string | number): string {
-  const str = String(value);
-  if (/[",\n]/.test(str)) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
 }

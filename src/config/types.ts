@@ -39,4 +39,12 @@ export interface BusinessConfig {
    * recibir el primer mensaje de un número nuevo (opcional).
    */
   whatsappGreeting?: string;
+  /**
+   * Premium: número de WhatsApp del DUEÑO del negocio (no del cliente),
+   * formato "+521234567890". Si está configurado y el canal de WhatsApp
+   * está activo (WHATSAPP_PROVIDER), se le avisa automáticamente cada vez
+   * que se agenda una cita real (ver src/actions/crearCita.ts). Opcional:
+   * sin esto, las citas se siguen agendando igual, solo que sin avisar.
+   */
+  ownerWhatsapp?: string;
 }

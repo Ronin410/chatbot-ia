@@ -80,7 +80,25 @@ curl "https://TU-DOMINIO/admin/conversations/export?format=csv" \
 (mensajes que coinciden con `fallbackMessage`) y así detectar qué falta
 agregar a la FAQ o a los documentos indexados.
 
-## 4. Cómo revisar citas y pedidos directamente en la base
+## 4. Cómo ve el dueño sus citas y pedidos
+
+El dueño del negocio (o quien le dé soporte) no necesita saber SQL: hay
+dos endpoints que devuelven la lista lista para abrir en Excel/Sheets —
+
+```bash
+curl "https://TU-DOMINIO/admin/citas?format=csv" -H "x-admin-token: TU_ADMIN_TOKEN"
+curl "https://TU-DOMINIO/admin/pedidos?format=csv" -H "x-admin-token: TU_ADMIN_TOKEN"
+```
+
+(o `?format=json` si lo va a consumir otra herramienta). Es el mismo
+`ADMIN_TOKEN` que el export de conversaciones. Si además configuraste
+`ownerWhatsapp` en `business-config.json` y el canal de WhatsApp está
+activo, el dueño ya recibe un WhatsApp automático cada vez que se
+confirma una cita nueva — el endpoint de arriba es para ver el
+panorama completo, no solo la última.
+
+Para revisar directamente en la base (depurar, o si necesitas algo que
+los endpoints no cubren):
 
 ```bash
 psql "$DATABASE_URL" -c "SELECT * FROM citas ORDER BY creado_en DESC LIMIT 20;"

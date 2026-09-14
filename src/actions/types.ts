@@ -13,3 +13,10 @@ export interface ActionRegistry {
   get(name: string): ActionDefinition | undefined;
   list(): ActionDefinition[];
 }
+
+/**
+ * Manda un mensaje de texto al dueño del negocio (no al cliente). Lo usa
+ * crear_cita para avisar por WhatsApp cuando se agenda una cita real.
+ * Opcional: si no se provee, la acción simplemente no notifica a nadie.
+ */
+export type OwnerNotifier = (message: string) => Promise<void>;

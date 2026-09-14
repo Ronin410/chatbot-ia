@@ -7,10 +7,13 @@ import { selectAiClient } from "./ai/selectAiClient";
 import { createChatEngine } from "./channels/chatEngine";
 import { createChatController } from "./channels/web/chatController";
 import { createWhatsappController } from "./channels/whatsapp/whatsappController";
-import { createWhatsappAdapter, type WhatsappProvider } from "./channels/whatsapp/whatsappAdapter";
+import { createWhatsappAdapter, type WhatsappAdapter, type WhatsappProvider } from "./channels/whatsapp/whatsappAdapter";
 import { createRagIndex } from "./rag";
 import { createSqliteConversationStore } from "./db";
-import { createActionRegistry, type ActionRegistry } from "./actions";
+import { createActionRegistry, type ActionRegistry, type OwnerNotifier } from "./actions";
+import { getPgPool } from "./db/postgres/pool";
+import { exportCitas, exportPedidos } from "./db/postgres/adminQueries";
+import type { Pool } from "pg";
 
 const PORT = Number(process.env.PORT) || 3000;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
@@ -28,14 +31,44 @@ function main(): void {
   // Log de conversaciones (Standard): SQLite local, ver .env SQLITE_PATH.
   const conversationStore = createSqliteConversationStore();
 
+  // Canal WhatsApp (Standard): activar con WHATSAPP_PROVIDER en .env.
+  // Se crea antes que las acciones porque crear_cita (Premium) lo reusa
+  // para avisarle al dueño del negocio cuando se agenda una cita real.
+  const whatsappProvider = process.env.WHATSAPP_PROVIDER as WhatsappProvider | undefined;
+  let whatsappAdapter: WhatsappAdapter | undefined;
+  if (whatsappProvider) {
+    try {
+      whatsappAdapter = createWhatsappAdapter(whatsappProvider);
+    } catch (error) {
+      console.warn(`[whatsapp] No se pudo activar el canal (${whatsappProvider}):`, (error as Error).message);
+    }
+  }
+
+  // Notificación al dueño (Premium): si hay WhatsApp activo y el negocio
+  // configuró `ownerWhatsapp`, crear_cita le avisa cada vez que se agenda
+  // una cita real. Sin cualquiera de los dos, simplemente no se notifica.
+  let notifyOwner: OwnerNotifier | undefined;
+  if (whatsappAdapter && businessConfig.ownerWhatsapp) {
+    const ownerNumber = businessConfig.ownerWhatsapp;
+    const adapter = whatsappAdapter;
+    notifyOwner = (message: string) => adapter.sendMessage(ownerNumber, message);
+  } else if (businessConfig.ownerWhatsapp && !whatsappAdapter) {
+    console.warn(
+      "[actions] ownerWhatsapp configurado pero el canal de WhatsApp no está activo " +
+        "(falta WHATSAPP_PROVIDER) — no se podrán enviar notificaciones de citas nuevas."
+    );
+  }
+
   // Acciones / function calling (Premium): requiere DATABASE_URL (Postgres).
   // Si no está configurado, el bot sigue funcionando como Standard (sin
   // acciones) en vez de romper el arranque — así esta misma rama sirve de
   // demo aunque el cliente todavía no tenga Postgres listo.
   let actionRegistry: ActionRegistry | undefined;
+  let pgPool: Pool | undefined;
   if (process.env.DATABASE_URL) {
     try {
-      actionRegistry = createActionRegistry();
+      pgPool = getPgPool();
+      actionRegistry = createActionRegistry(pgPool, notifyOwner);
       console.log(`Acciones Premium activas: ${actionRegistry.list().map((a) => a.name).join(", ")}`);
     } catch (error) {
       console.warn("[actions] No se pudieron inicializar las acciones Premium:", (error as Error).message);
@@ -68,22 +101,16 @@ function main(): void {
 
   app.post("/chat", express.json(), createChatController(chatEngine));
 
-  // Canal WhatsApp (Standard): activar con WHATSAPP_PROVIDER en .env y
-  // configurar la URL del webhook en la consola del proveedor apuntando a
-  // POST /webhooks/whatsapp. Twilio envía application/x-www-form-urlencoded.
-  const whatsappProvider = process.env.WHATSAPP_PROVIDER as WhatsappProvider | undefined;
-  if (whatsappProvider) {
-    try {
-      const whatsappAdapter = createWhatsappAdapter(whatsappProvider);
-      app.post(
-        "/webhooks/whatsapp",
-        express.urlencoded({ extended: false }),
-        createWhatsappController(chatEngine, whatsappAdapter)
-      );
-      console.log(`Canal WhatsApp activo (${whatsappProvider}) en POST /webhooks/whatsapp`);
-    } catch (error) {
-      console.warn(`[whatsapp] No se pudo activar el canal (${whatsappProvider}):`, (error as Error).message);
-    }
+  // Canal WhatsApp (Standard): configurar la URL del webhook en la consola
+  // del proveedor apuntando a POST /webhooks/whatsapp. Twilio envía
+  // application/x-www-form-urlencoded.
+  if (whatsappAdapter) {
+    app.post(
+      "/webhooks/whatsapp",
+      express.urlencoded({ extended: false }),
+      createWhatsappController(chatEngine, whatsappAdapter)
+    );
+    console.log(`Canal WhatsApp activo (${whatsappProvider}) en POST /webhooks/whatsapp`);
   }
 
   // Reporte de conversaciones (Standard): protegido con un token simple
@@ -103,6 +130,39 @@ function main(): void {
     res.setHeader("Content-Disposition", `attachment; filename="conversaciones.${format}"`);
     res.send(data);
   });
+
+  // Citas y pedidos (Premium): para que el dueño del negocio (o quien le
+  // dé soporte) los vea sin usar `psql` a mano. Mismo token que el export
+  // de conversaciones. Solo se monta si hay Postgres configurado.
+  if (pgPool) {
+    const pool = pgPool;
+
+    app.get("/admin/citas", express.json(), async (req, res) => {
+      if (ADMIN_TOKEN && req.header("x-admin-token") !== ADMIN_TOKEN) {
+        res.status(401).json({ error: "Token de administración inválido." });
+        return;
+      }
+
+      const format = req.query.format === "json" ? "json" : "csv";
+      const data = await exportCitas(pool, format);
+      res.setHeader("Content-Type", format === "json" ? "application/json" : "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="citas.${format}"`);
+      res.send(data);
+    });
+
+    app.get("/admin/pedidos", express.json(), async (req, res) => {
+      if (ADMIN_TOKEN && req.header("x-admin-token") !== ADMIN_TOKEN) {
+        res.status(401).json({ error: "Token de administración inválido." });
+        return;
+      }
+
+      const format = req.query.format === "json" ? "json" : "csv";
+      const data = await exportPedidos(pool, format);
+      res.setHeader("Content-Type", format === "json" ? "application/json" : "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="pedidos.${format}"`);
+      res.send(data);
+    });
+  }
 
   app.listen(PORT, () => {
     console.log(`Chatbot IA (${businessConfig.level}) escuchando en http://localhost:${PORT}`);
