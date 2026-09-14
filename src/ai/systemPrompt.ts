@@ -29,6 +29,7 @@ export function buildSystemPrompt(config: BusinessConfig, options: BuildSystemPr
   const parts = [
     `Eres el asistente virtual de "${config.businessName}".`,
     `Tono: ${config.tone}`,
+    `Hoy es ${formatToday(config.language)}. Usa esta fecha como referencia para interpretar expresiones relativas ("mañana", "la próxima semana", "el viernes") y fechas sin año — nunca asumas un año pasado.`,
     languageInstruction,
     `Usa la siguiente base de preguntas frecuentes como fuente principal de verdad:`,
     faqBlock,
@@ -64,4 +65,21 @@ function languageName(code: string): string {
     fr: "francés",
   };
   return names[code] || code;
+}
+
+/**
+ * Fecha de hoy en texto legible, en el idioma base del negocio (ej.
+ * "martes 14 de octubre de 2026"). Sin esto, el modelo no tiene forma de
+ * saber qué día es "hoy" y puede asumir años equivocados al interpretar
+ * fechas relativas u omitidas (ej. agendar una cita en un año pasado).
+ */
+function formatToday(language: string): string {
+  const locales: Record<string, string> = { es: "es-ES", en: "en-US", pt: "pt-BR", fr: "fr-FR" };
+  const locale = locales[language] || "es-ES";
+  return new Intl.DateTimeFormat(locale, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(new Date());
 }
