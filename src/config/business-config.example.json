@@ -2,7 +2,7 @@
   "businessName": "Panadería Dulce Aroma",
   "tone": "cálido, cercano y profesional. Usa español neutro y evita tecnicismos.",
   "language": "es",
-  "level": "standard",
+  "level": "premium",
   "aiProvider": "openai",
   "faq": [
     {

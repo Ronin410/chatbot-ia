@@ -5,8 +5,38 @@ services:
       - "3000:3000"
     env_file:
       - .env
+    environment:
+      # Sobrescribe DATABASE_URL del .env para apuntar al servicio 'postgres'
+      # de este mismo compose (el host "localhost" de un .env pensado para
+      # correr sin Docker no sirve entre contenedores).
+      DATABASE_URL: postgresql://chatbot:chatbot@postgres:5432/chatbot
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
       # Monta tu business-config.json local dentro de la imagen sin
       # necesidad de reconstruirla al editarlo (útil para probar
       # distintos negocios/clientes en local).
       - ./src/config/business-config.json:/app/dist/config/business-config.json:ro
+
+  # Postgres para las acciones de Premium (citas/pedidos). No se usa en
+  # Basic/Standard — si tu negocio todavía no llegó a Premium, puedes
+  # comentar este servicio y la sección DATABASE_URL de arriba.
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: chatbot
+      POSTGRES_PASSWORD: chatbot
+      POSTGRES_DB: chatbot
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chatbot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

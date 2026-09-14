@@ -10,6 +10,7 @@ import { createWhatsappController } from "./channels/whatsapp/whatsappController
 import { createWhatsappAdapter, type WhatsappProvider } from "./channels/whatsapp/whatsappAdapter";
 import { createRagIndex } from "./rag";
 import { createSqliteConversationStore } from "./db";
+import { createActionRegistry, type ActionRegistry } from "./actions";
 
 const PORT = Number(process.env.PORT) || 3000;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
@@ -27,11 +28,31 @@ function main(): void {
   // Log de conversaciones (Standard): SQLite local, ver .env SQLITE_PATH.
   const conversationStore = createSqliteConversationStore();
 
+  // Acciones / function calling (Premium): requiere DATABASE_URL (Postgres).
+  // Si no está configurado, el bot sigue funcionando como Standard (sin
+  // acciones) en vez de romper el arranque — así esta misma rama sirve de
+  // demo aunque el cliente todavía no tenga Postgres listo.
+  let actionRegistry: ActionRegistry | undefined;
+  if (process.env.DATABASE_URL) {
+    try {
+      actionRegistry = createActionRegistry();
+      console.log(`Acciones Premium activas: ${actionRegistry.list().map((a) => a.name).join(", ")}`);
+    } catch (error) {
+      console.warn("[actions] No se pudieron inicializar las acciones Premium:", (error as Error).message);
+    }
+  } else {
+    console.warn(
+      "[actions] DATABASE_URL no configurado: las acciones Premium (crear_cita, consultar_pedido) " +
+        "están desactivadas. Ver .env.example y docker-compose.yml (servicio 'postgres')."
+    );
+  }
+
   const chatEngine = createChatEngine({
     config: businessConfig,
     aiClient,
     ragIndex,
     conversationStore,
+    actionRegistry,
   });
 
   const app = express();

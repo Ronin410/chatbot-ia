@@ -1,32 +1,36 @@
-# Cómo levantar el proyecto en local para pruebas (nivel Standard)
+# Cómo levantar el proyecto en local para pruebas (nivel Premium)
 
-Hay dos formas: con Node directamente, o con Docker. Ambas exponen el
-mismo servidor en `http://localhost:3000`.
+Hay dos formas: con Node directamente, o con Docker (recomendado para
+Premium porque incluye Postgres listo). Ambas exponen el servidor en
+`http://localhost:3000`.
 
 ---
 
-## Opción A — Node directo (más rápida para desarrollar)
+## Opción A — Node directo
 
-Requisitos: Node.js 18+.
+Requisitos: Node.js 18+ y PostgreSQL accesible (local o remoto).
 
 ```bash
 npm install
 cp .env.example .env
 ```
 
-Edita `.env` y completa **al menos una** de estas dos claves (según el
-proveedor que uses en `AI_PROVIDER`):
+Edita `.env`:
 
 ```
-OPENAI_API_KEY=sk-...
-# o
-ANTHROPIC_API_KEY=sk-ant-...
-AI_PROVIDER=openai   # o anthropic
+OPENAI_API_KEY=sk-...      # o ANTHROPIC_API_KEY
+AI_PROVIDER=openai         # o anthropic
+DATABASE_URL=postgresql://usuario:password@localhost:5432/chatbot
 ```
 
-> Si vas a probar RAG, `OPENAI_API_KEY` es obligatorio siempre (los
-> embeddings solo existen en la API de OpenAI), aunque el chat use
+> RAG requiere `OPENAI_API_KEY` siempre (embeddings), aunque el chat use
 > `AI_PROVIDER=anthropic`.
+
+Crea las tablas (una sola vez, y de nuevo cada vez que cambie `schema.sql`):
+
+```bash
+npm run db:migrate
+```
 
 Levanta el servidor:
 
@@ -34,42 +38,44 @@ Levanta el servidor:
 npm run dev
 ```
 
-Verás:
+Deberías ver:
 
 ```
-Chatbot IA (standard) escuchando en http://localhost:3000
+Acciones Premium activas: crear_cita, consultar_pedido
+Chatbot IA (premium) escuchando en http://localhost:3000
 Widget de prueba: http://localhost:3000/widget/
 ```
 
-(Si además completaste `WHATSAPP_PROVIDER=twilio` con sus credenciales,
-verás una línea extra: `Canal WhatsApp activo (twilio) en POST /webhooks/whatsapp`.)
+Si no ves la primera línea (o ves una advertencia `[actions] No se
+pudieron inicializar...`), revisa `DATABASE_URL` y que Postgres esté
+accesible — el resto del bot (FAQ, RAG, WhatsApp) sigue funcionando igual
+sin acciones.
 
 ---
 
-## Opción B — Docker
+## Opción B — Docker (con Postgres incluido)
 
-Requisitos: Docker (y Docker Compose, incluido en el Docker Desktop
-actual).
+Requisitos: Docker + Docker Compose.
 
 ```bash
 cp .env.example .env
-# completa OPENAI_API_KEY o ANTHROPIC_API_KEY en .env, igual que arriba
+# completa OPENAI_API_KEY o ANTHROPIC_API_KEY en .env
+# no hace falta tocar DATABASE_URL: docker-compose.yml lo apunta al servicio "postgres"
 docker compose up --build
 ```
 
-`docker-compose.yml` monta tu `src/config/business-config.json` local
-dentro del contenedor, así que puedes editar la FAQ/tono del negocio y
-solo necesitas `docker compose restart` para verlo reflejado, sin
-reconstruir la imagen.
-
-Para construir/correr sin compose:
+En otra terminal, una sola vez, crea las tablas:
 
 ```bash
-docker build -t chatbot-ia .
-docker run --rm -p 3000:3000 --env-file .env chatbot-ia
+docker compose exec chatbot node dist/db/postgres/migrate.js
 ```
 
-Para bajarlo: `Ctrl+C` (o `docker compose down` si usaste compose).
+`docker-compose.yml` monta tu `src/config/business-config.json` local
+dentro del contenedor: puedes editarlo y solo necesitas
+`docker compose restart chatbot` para verlo reflejado.
+
+Para bajarlo: `docker compose down` (agrega `-v` si además quieres borrar
+los datos de Postgres).
 
 ---
 
@@ -82,90 +88,88 @@ curl http://localhost:3000/health
 ```
 
 ```json
-{ "status": "ok", "business": "Panadería Dulce Aroma", "level": "standard" }
+{ "status": "ok", "business": "Panadería Dulce Aroma", "level": "premium" }
 ```
 
 ### 2. El widget de chat embebido (canal web)
 
 Abre `widget/index.html` en el navegador, o `http://localhost:3000/widget/`.
-Haz clic en la burbuja de chat y escribe un mensaje.
 
-### 3. El endpoint `/chat` directamente
-
-```bash
-curl -X POST http://localhost:3000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "¿Hacen envíos a domicilio?", "history": []}'
-```
-
-### 4. RAG sobre un documento del cliente
+### 3. RAG (igual que Standard)
 
 ```bash
 npm run rag:index -- documentos/politicas-de-devolucion.txt
 ```
 
-Luego pregunta algo que solo esté en ese documento (no en la FAQ), por
-ejemplo:
+### 4. Consultar un pedido (function calling, solo lectura)
+
+El esquema trae dos pedidos de ejemplo (`PED-1001`, `PED-1002`). Pregúntale
+al bot por uno:
 
 ```bash
 curl -X POST http://localhost:3000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "¿Puedo cancelar una torta personalizada?", "history": []}'
+  -d '{"message": "¿Cómo va mi pedido PED-1001?", "history": []}'
 ```
 
-Debería responder usando el contenido del documento (anticipo del 50%,
-reembolso según anticipación), no el fallback genérico.
+El modelo debería invocar `consultar_pedido` internamente y responder con
+el estatus real (`en_camino`) que está en la base, no un dato inventado.
 
-### 5. WhatsApp (simulado con curl, sin cuenta de Twilio real)
-
-Puedes probar el webhook sin una cuenta de Twilio real simulando su
-payload (necesitas `WHATSAPP_PROVIDER=twilio` configurado en `.env`,
-aunque las credenciales sean de prueba — solo fallará el envío final de
-la respuesta, no la recepción/generación):
+### 5. Agendar una cita (function calling con confirmación)
 
 ```bash
-curl -X POST http://localhost:3000/webhooks/whatsapp \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  --data-urlencode "From=whatsapp:+5215512345678" \
-  --data-urlencode "Body=Hola, ¿cuál es el horario?"
+curl -X POST http://localhost:3000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Quiero agendar una torta de cumpleaños para el 1 de octubre a las 10am, mi nombre es Juan y mi teléfono 555-1234", "history": []}'
 ```
 
-Responde `200 <Response></Response>` de inmediato (así lo espera Twilio)
-y procesa el mensaje en segundo plano.
-
-### 6. Reporte de conversaciones
-
-Todo lo que pruebes en los pasos 3-5 queda registrado. Para verlo:
+La primera respuesta debería ser un resumen pidiendo que confirmes (el
+modelo llama `crear_cita` con `confirmado:false` primero). Confirma en el
+siguiente mensaje, reenviando el historial:
 
 ```bash
-curl "http://localhost:3000/admin/conversations/export?format=json"
-# o
-curl "http://localhost:3000/admin/conversations/export?format=csv"
+curl -X POST http://localhost:3000/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Sí, confirmo",
+    "history": [
+      {"role":"user","content":"Quiero agendar una torta de cumpleaños para el 1 de octubre a las 10am, mi nombre es Juan y mi teléfono 555-1234"},
+      {"role":"assistant","content":"<pega aquí la respuesta anterior del bot>"}
+    ]
+  }'
 ```
 
-Si configuraste `ADMIN_TOKEN` en `.env`, agrega
-`-H "x-admin-token: TU_ADMIN_TOKEN"`.
+Solo en este segundo paso debería quedar la cita realmente guardada.
+Puedes verificarlo directo en la base:
+
+```bash
+psql "$DATABASE_URL" -c "SELECT * FROM citas;"
+```
+
+### 6. WhatsApp y reporte de conversaciones
+
+Igual que en Standard — ver esa sección más abajo si necesitas el detalle
+de cómo simular el webhook de Twilio o exportar el log de conversaciones.
 
 ## Qué vas a ver si lo levantas *tal cual está ahora* (sin tocar nada)
 
-El repo trae datos de ejemplo de una panadería ficticia
-(`src/config/business-config.json`) y un documento de ejemplo
-(`documentos/politicas-de-devolucion.txt`), así que **sin cambiar ningún
-archivo** — solo completando una API key real en `.env` — vas a tener:
+Con una API key real de IA y `DATABASE_URL` apuntando a un Postgres con
+las tablas migradas (pasos de arriba), tal cual está el repo vas a poder:
 
-- Un chatbot que responde en español (o en el idioma del usuario, porque
-  `multiLanguage: true`), con las 10 preguntas de la FAQ de ejemplo.
-- Si además indexas el documento de ejemplo (paso 4), también responde
-  preguntas que no están en la FAQ pero sí en ese documento (política de
-  devoluciones, alérgenos, anticipos).
-- Cada mensaje/respuesta (web o WhatsApp) queda en `data/conversations.sqlite`
-  y se puede exportar a CSV/JSON.
-- Si no configuras WhatsApp, ese canal simplemente no se monta — el resto
-  funciona igual.
+- Chatear normalmente usando la FAQ de ejemplo (panadería).
+- Preguntar por `PED-1001` o `PED-1002` y recibir el estatus real
+  guardado en la base (no inventado).
+- Pedir agendar una cita y ver que el bot **no la agenda de inmediato**:
+  primero resume y pide confirmación; solo la guarda en Postgres después
+  de que confirmas explícitamente en un mensaje siguiente.
+- Todo lo de Standard sigue igual: RAG sobre `documentos/`, WhatsApp (si
+  configuras Twilio), multi-idioma, y el log/export de conversaciones.
 
-**Si dejas las API keys vacías o inválidas**, el chat sigue respondiendo
-siempre (con el mensaje de error genérico configurado) en vez de romper
-el servidor, tanto en web como en WhatsApp.
+**Si `DATABASE_URL` está vacío o Postgres no está disponible**, el
+servidor arranca igual (con una advertencia en el log) y el bot sigue
+respondiendo con la FAQ/RAG normalmente — simplemente no podrá agendar
+citas ni consultar pedidos hasta que se configure.
 
-Function calling, acciones (agendar citas, consultar pedidos) y
-PostgreSQL (Premium) no están en esta rama — ver `claude/premium-level-scaffold`.
+**Si las API keys de IA están vacías/inválidas**, como en los niveles
+anteriores, el chat responde siempre el mensaje de error genérico en vez
+de romper el servidor.

@@ -6,17 +6,19 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json && mkdir -p dist/config && cp src/config/*.json dist/config/",
+    "build": "tsc -p tsconfig.json && mkdir -p dist/config && cp src/config/*.json dist/config/ && mkdir -p dist/db/postgres && cp src/db/postgres/schema.sql dist/db/postgres/",
     "start": "node dist/server.js",
     "lint": "tsc --noEmit",
-    "rag:index": "tsx src/rag/cli.ts"
+    "rag:index": "tsx src/rag/cli.ts",
+    "db:migrate": "tsx src/db/postgres/migrate.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "pdf-parse": "1.1.1"
+    "pdf-parse": "1.1.1",
+    "pg": "^8.12.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
@@ -24,6 +26,7 @@
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.9",
     "@types/pdf-parse": "^1.1.5",
+    "@types/pg": "^8.11.6",
     "tsx": "^4.16.2",
     "typescript": "^5.5.3"
   },

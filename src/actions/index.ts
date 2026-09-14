@@ -1,36 +1,40 @@
+import type { Pool } from "pg";
+import type { ToolDefinition } from "../ai/types";
+import type { ActionDefinition, ActionRegistry } from "./types";
+import { getPgPool } from "../db/postgres/pool";
+import { createCrearCitaAction } from "./crearCita";
+import { createConsultarPedidoAction } from "./consultarPedido";
+
+export type { ActionDefinition, ActionRegistry } from "./types";
+
 /**
- * Function calling / tools del modelo para acciones estructuradas
- * (Premium): ej. `crear_cita`, `consultar_pedido`.
- *
- * NO IMPLEMENTADO en los niveles Basic/Standard. Interfaz definida para
- * activar Premium:
- *  1. Declarar cada acción como `ActionDefinition` (nombre, descripción,
- *     esquema de parámetros) y registrarla en el modelo (tools de OpenAI /
- *     Anthropic).
- *  2. Implementar `execute` conectando a la base de datos real (ver src/db).
- *  3. Antes de ejecutar una acción irreversible (agendar, cancelar, pagar),
- *     el bot debe pedir confirmación explícita al usuario en la conversación.
+ * Registro de acciones/tools de Premium: `crear_cita` (irreversible, pide
+ * confirmación) y `consultar_pedido` (solo lectura). Para agregar una
+ * acción nueva: crear su archivo (ver crearCita.ts/consultarPedido.ts
+ * como plantilla) y registrarla aquí.
  */
+export function createActionRegistry(pool: Pool = getPgPool()): ActionRegistry {
+  const actions = new Map<string, ActionDefinition>();
 
-export interface ActionDefinition<TParams = unknown, TResult = unknown> {
-  name: string;
-  description: string;
-  /** JSON Schema de los parámetros esperados por la acción. */
-  parametersSchema: Record<string, unknown>;
-  /** Si es true, el bot debe confirmar con el usuario antes de ejecutar. */
-  requiresConfirmation: boolean;
-  execute(params: TParams): Promise<TResult>;
+  function register(action: ActionDefinition): void {
+    actions.set(action.name, action);
+  }
+
+  register(createCrearCitaAction(pool));
+  register(createConsultarPedidoAction(pool));
+
+  return {
+    register,
+    get: (name) => actions.get(name),
+    list: () => Array.from(actions.values()),
+  };
 }
 
-export interface ActionRegistry {
-  register(action: ActionDefinition): void;
-  get(name: string): ActionDefinition | undefined;
-  list(): ActionDefinition[];
-}
-
-export function createActionRegistry(): ActionRegistry {
-  throw new Error(
-    "Function calling / actions no implementado todavía: funcionalidad de nivel Premium. " +
-      "Ver src/actions/index.ts"
-  );
+/** Convierte las acciones registradas al formato `ToolDefinition` que esperan los clientes de IA. */
+export function actionsToToolDefinitions(registry: ActionRegistry): ToolDefinition[] {
+  return registry.list().map((action) => ({
+    name: action.name,
+    description: action.description,
+    parameters: action.parametersSchema,
+  }));
 }

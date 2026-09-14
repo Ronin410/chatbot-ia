@@ -1,126 +1,118 @@
-# Chatbot con IA (GPT/Claude) — Nivel Standard
+# Chatbot con IA (GPT/Claude) — Nivel Premium
 
 Base de código parametrizable para el gig de Fiverr "Chatbot con IA". Esta
-rama (`claude/standard-level-scaffold`) trae **todo lo de Basic + el
-nivel Standard implementado end-to-end**, lista para usarse tal cual en
-un pedido real con solo cambiar la config del negocio.
+rama (`claude/premium-level-scaffold`) trae **todo lo de Basic + Standard,
+más el nivel Premium implementado end-to-end**: function calling con
+acciones reales contra PostgreSQL y confirmación antes de ejecutar
+acciones irreversibles.
 
-> ¿Buscas la versión mínima (solo FAQ + widget web)? Está en la rama
-> `claude/basic-level-scaffold-ezvpl9`.
-> ¿Buscas Premium (function calling + Postgres)? Está en
-> `claude/premium-level-scaffold`, construida encima de esta.
+> ¿Buscas una versión más simple?
+> - Solo FAQ + widget web: rama `claude/basic-level-scaffold-ezvpl9`.
+> - + WhatsApp, RAG, multi-idioma, log de conversaciones: rama
+>   `claude/standard-level-scaffold`.
 
-Para un pedido real solo hace falta:
+Para un pedido real Premium solo hace falta:
 
-1. Cargar la info del negocio del cliente en `src/config/business-config.json`
-   (FAQ, tono, nombre) y, si aplica, sus documentos en `documentos/`.
-2. Configurar el canal (web y/o WhatsApp) y el proveedor de IA en `.env`.
-3. Indexar los documentos del cliente para RAG (`npm run rag:index`).
+1. Cargar la info del negocio en `src/config/business-config.json` y sus
+   documentos en `documentos/` (igual que Standard).
+2. Configurar el canal (web y/o WhatsApp), el proveedor de IA y
+   `DATABASE_URL` en `.env`.
+3. Correr `npm run db:migrate` para crear el esquema de citas/pedidos.
+4. Si el negocio necesita otras acciones (además de agendar citas y
+   consultar pedidos), agregarlas en `src/actions/` siguiendo el mismo
+   patrón.
 
 ---
 
 ## Qué incluye esta rama
 
-### Heredado de Basic
-- Endpoint `POST /chat` (canal web) + widget de chat embebible
-  (`widget/chatbot.js`).
-- Prompt de sistema generado desde `business-config.json`.
-- Manejo de errores con timeout y mensaje de fallback genérico.
+### Heredado de Basic + Standard
+Widget web, WhatsApp (Twilio), RAG básico sobre documentos, multi-idioma,
+y log de conversaciones exportable — ver el README de la rama Standard
+para el detalle de cada uno (sigue todo funcionando igual aquí).
 
-### Nuevo en Standard
-- **WhatsApp Business** vía Twilio: webhook `POST /webhooks/whatsapp`
-  conectado al mismo motor de respuestas que el widget web
-  (`src/channels/whatsapp/`). Meta Cloud API queda con la interfaz
-  definida pero sin implementar (ver comentarios en `whatsappAdapter.ts`).
-- **RAG básico**: indexa documentos propios del cliente (`.pdf`, `.txt`,
-  `.md`) — chunking + embeddings de OpenAI + búsqueda por similitud
-  coseno — e inyecta el contexto más relevante en el prompt antes de
-  responder (`src/rag/`).
-- **Multi-idioma**: con `multiLanguage: true` en `business-config.json`,
-  el prompt instruye al modelo a detectar el idioma del usuario y
-  responder en ese idioma.
-- **Log de conversaciones** en SQLite (`src/db/`): cada intercambio
-  (web o WhatsApp) se guarda con timestamp, canal, mensaje y respuesta.
-- **Exportación de conversaciones**: `GET /admin/conversations/export?format=csv|json`
-  (protegido opcionalmente con `ADMIN_TOKEN`).
+### Nuevo en Premium
+- **Function calling real**: dos acciones registradas —
+  `crear_cita` y `consultar_pedido` (`src/actions/`) — que el modelo
+  puede invocar durante la conversación, implementado tanto para OpenAI
+  (`tools`/`tool_calls`) como para Anthropic (`tools`/`tool_use`) detrás
+  de un mismo método `aiClient.completeWithTools(...)`
+  (`src/ai/types.ts`, `openaiClient.ts`, `anthropicClient.ts`).
+- **Base de datos real (PostgreSQL)**: esquema en
+  `src/db/postgres/schema.sql` (tablas `citas` y `pedidos`, con datos de
+  ejemplo) + pool de conexión (`src/db/postgres/pool.ts`) + script de
+  migración (`npm run db:migrate`).
+- **Confirmación antes de acciones irreversibles**: `crear_cita` nunca
+  agenda nada la primera vez que se llama — devuelve un resumen y pide
+  que el modelo lo confirme con el usuario antes de ejecutarla de verdad
+  (`confirmado: true`). `consultar_pedido`, al ser de solo lectura, no
+  necesita confirmación. La política completa se le explica al modelo en
+  el prompt de sistema cuando hay acciones activas
+  (`src/ai/systemPrompt.ts`).
+- **Documentación de mantenimiento** para los 15 días de soporte
+  post-entrega: [`docs/mantenimiento.md`](./docs/mantenimiento.md).
 
-Todo esto comparte un mismo núcleo (`src/channels/chatEngine.ts`) para
-que el canal web y WhatsApp no dupliquen lógica de prompt/IA/logging.
+Si `DATABASE_URL` no está configurado, el servidor sigue arrancando y
+funcionando igual que Standard (sin acciones) — Premium es aditivo, no
+rompe nada si el cliente todavía no llegó a ese nivel.
 
 ### Setup rápido
 
 ```bash
 npm install
 cp .env.example .env
-# completa OPENAI_API_KEY (o ANTHROPIC_API_KEY) y AI_PROVIDER en .env
+# completa OPENAI_API_KEY (o ANTHROPIC_API_KEY), AI_PROVIDER y DATABASE_URL en .env
+npm run db:migrate
 npm run dev
 ```
 
-> Para instrucciones detalladas (Node o Docker) y qué deberías ver
-> funcionando, ver **[TESTING.md](./TESTING.md)**.
+Al arrancar deberías ver:
+```
+Acciones Premium activas: crear_cita, consultar_pedido
+Chatbot IA (premium) escuchando en http://localhost:3000
+```
 
-### Con Docker
+> Para instrucciones detalladas (Node o Docker, con Postgres incluido) y
+> qué deberías ver funcionando, ver **[TESTING.md](./TESTING.md)**.
+
+### Con Docker (incluye Postgres)
 
 ```bash
 cp .env.example .env
 docker compose up --build
+# en otra terminal, una sola vez (crea las tablas):
+docker compose exec chatbot node dist/db/postgres/migrate.js
 ```
 
-### Activar WhatsApp (Twilio)
+`docker-compose.yml` ya trae un servicio `postgres` y apunta
+`DATABASE_URL` del contenedor `chatbot` a él automáticamente.
 
-1. Crea una cuenta de Twilio y activa el sandbox de WhatsApp (o un número
-   productivo).
-2. Completa en `.env`: `WHATSAPP_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`,
-   `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_NUMBER`.
-3. En la consola de Twilio, configura el webhook de mensajes entrantes
-   apuntando a `https://TU-DOMINIO/webhooks/whatsapp` (método POST).
-4. Reinicia el servidor — el log al arrancar confirma
-   `Canal WhatsApp activo (twilio) en POST /webhooks/whatsapp`.
+### Agregar una acción nueva
 
-El historial de una conversación de WhatsApp se mantiene en memoria por
-número de teléfono mientras el proceso sigue vivo (no persiste si se
-reinicia el servidor); el log en SQLite sí es permanente.
+1. Crea `src/actions/miAccion.ts` siguiendo el patrón de
+   `crearCita.ts` (irreversible, con confirmación) o
+   `consultarPedido.ts` (solo lectura): exporta una función que recibe el
+   `Pool` de Postgres y devuelve un `ActionDefinition` (`name`,
+   `description`, `parametersSchema` en JSON Schema, `requiresConfirmation`,
+   `execute`).
+2. Regístrala en `src/actions/index.ts` (`register(createMiAccion(pool))`).
+3. Si necesita tablas nuevas, agrégalas a `src/db/postgres/schema.sql` y
+   corre `npm run db:migrate` de nuevo (usa `CREATE TABLE IF NOT EXISTS`,
+   es seguro repetirlo).
 
-### Activar RAG (documentos del cliente)
-
-1. Coloca el documento del cliente en `documentos/` (o cualquier ruta).
-   Ya incluye uno de ejemplo: `documentos/politicas-de-devolucion.txt`.
-2. Indícalo:
-   ```bash
-   npm run rag:index -- documentos/politicas-de-devolucion.txt
-   ```
-   Esto genera/actualiza `data/rag-index.json` (o la ruta de
-   `RAG_STORE_PATH`). Requiere `OPENAI_API_KEY` configurado **siempre**,
-   incluso si el chat usa `AI_PROVIDER=anthropic`, porque Anthropic no
-   ofrece API de embeddings (ver `src/rag/embeddingsClient.ts`).
-3. Al llegar un mensaje, si hay documentos indexados, `chatEngine` recupera
-   los fragmentos más relevantes y los agrega al prompt automáticamente
-   (no requiere tocar `server.ts`).
-
-Si no indexas ningún documento, Standard se comporta igual que Basic
-(responde solo con la FAQ) — RAG es aditivo, no rompe nada si no se usa.
-
-### Ver el reporte de conversaciones
-
-```bash
-curl "http://localhost:3000/admin/conversations/export?format=csv" \
-  -H "x-admin-token: TU_ADMIN_TOKEN"
-```
-
-Si `ADMIN_TOKEN` está vacío en `.env`, el endpoint no pide token (solo
-recomendable en local).
+No hace falta tocar `chatEngine.ts` ni los clientes de IA: las acciones
+registradas se exponen automáticamente como tools al modelo.
 
 ### Personalizar para un cliente nuevo
 
-Edita `src/config/business-config.json` (o crea uno nuevo y apunta
-`BUSINESS_CONFIG_PATH` a él):
+Mismo `business-config.json` que Standard, con `"level": "premium"`:
 
 ```json
 {
   "businessName": "...",
   "tone": "...",
   "language": "es",
-  "level": "standard",
+  "level": "premium",
   "aiProvider": "openai",
   "multiLanguage": true,
   "faq": [{ "question": "...", "answer": "..." }],
@@ -130,18 +122,6 @@ Edita `src/config/business-config.json` (o crea uno nuevo y apunta
 }
 ```
 
-`business-config.example.json` queda como plantilla de referencia.
-
----
-
-## Nivel Premium (no incluido en esta rama)
-
-Function calling (`crear_cita`, `consultar_pedido`), base de datos real en
-PostgreSQL y confirmación de acciones irreversibles. Ver la rama
-`claude/premium-level-scaffold`, que parte de esta misma rama Standard y
-agrega esas piezas sin tocar lo de aquí (`src/actions/` y `src/db/`
-quedan con las interfaces documentadas mientras tanto).
-
 ---
 
 ## Estructura de carpetas
@@ -149,25 +129,28 @@ quedan con las interfaces documentadas mientras tanto).
 ```
 chatbot-ia/
 ├── src/
-│   ├── config/            # business-config.json por cliente + loader/tipos
+│   ├── config/              # business-config.json por cliente + loader/tipos
 │   ├── channels/
-│   │   ├── chatEngine.ts  # núcleo compartido: prompt + IA + RAG + logging
-│   │   ├── types.ts       # tipo Channel ("web" | "whatsapp")
-│   │   ├── web/           # controller del endpoint /chat
-│   │   └── whatsapp/      # adapter (Twilio implementado) + controller del webhook
-│   ├── ai/                # cliente OpenAI, cliente Claude, selector, prompt
-│   ├── rag/                # chunking, embeddings, vector store, CLI de indexado
-│   ├── actions/            # function calling / tools — Premium (interfaz)
-│   ├── db/                 # ConversationStore en SQLite (log + export)
+│   │   ├── chatEngine.ts    # núcleo compartido: prompt + IA + RAG + tools + logging
+│   │   ├── types.ts         # tipo Channel ("web" | "whatsapp")
+│   │   ├── web/             # controller del endpoint /chat
+│   │   └── whatsapp/        # adapter (Twilio) + controller del webhook
+│   ├── ai/                  # clientes OpenAI/Claude con function calling, selector, prompt
+│   ├── rag/                  # chunking, embeddings, vector store, CLI de indexado
+│   ├── actions/               # crear_cita, consultar_pedido (function calling real)
+│   ├── db/
+│   │   ├── sqliteConversationStore.ts  # log de conversaciones (Standard)
+│   │   └── postgres/                    # pool, schema.sql, CLI de migración (Premium)
 │   └── server.ts
-├── widget/                 # widget de chat embebible + demo.html
-├── documentos/              # documentos de ejemplo para indexar con RAG
-├── data/                    # generado en runtime: rag-index.json, conversations.sqlite (git-ignored)
-├── n8n-flows/               # exports de flujos n8n si se usan de orquestador
+├── widget/                    # widget de chat embebible + demo.html
+├── documentos/                 # documentos de ejemplo para indexar con RAG
+├── docs/mantenimiento.md       # guía de soporte post-entrega (15 días)
+├── data/                       # generado en runtime: rag-index.json, conversations.sqlite (git-ignored)
+├── n8n-flows/                  # exports de flujos n8n si se usan de orquestador
 ├── Dockerfile
-├── docker-compose.yml
+├── docker-compose.yml           # incluye servicio postgres
 ├── .env.example
-├── TESTING.md               # cómo levantarlo en local (Node o Docker) para probar
+├── TESTING.md                   # cómo levantarlo en local (Node o Docker) para probar
 └── README.md
 ```
 
@@ -184,11 +167,12 @@ Ver `.env.example` para el detalle completo. Resumen:
 | `WHATSAPP_PROVIDER`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_NUMBER` | Standard | Canal WhatsApp |
 | `RAG_STORE_PATH` | Standard | Dónde se guarda el índice de documentos |
 | `SQLITE_PATH`, `ADMIN_TOKEN` | Standard | Log de conversaciones y protección del export |
-| `DATABASE_URL` | Premium | Conexión a PostgreSQL (citas/pedidos) |
+| `DATABASE_URL` | Premium | Conexión a PostgreSQL (citas/pedidos) — habilita las acciones |
 
 ## Stack
 
 Node.js + TypeScript + Express. Clientes de OpenAI/Anthropic vía `fetch`
-nativo (mismo contrato `AiClient`, intercambiables). SQLite
-(`better-sqlite3`) para el log de conversaciones — sin servidor de base de
-datos aparte. `pdf-parse` para extraer texto de PDFs del cliente en RAG.
+nativo, ambos con `complete()` (texto simple) y `completeWithTools()`
+(function calling). SQLite (`better-sqlite3`) para el log de
+conversaciones; PostgreSQL (`pg`) para citas/pedidos reales. `pdf-parse`
+para extraer texto de PDFs del cliente en RAG.
