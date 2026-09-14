@@ -1,0 +1,51 @@
+{
+  "businessName": "Panadería Dulce Aroma",
+  "tone": "cálido, cercano y profesional. Usa español neutro y evita tecnicismos.",
+  "language": "es",
+  "level": "basic",
+  "aiProvider": "openai",
+  "faq": [
+    {
+      "question": "¿Cuál es el horario de atención?",
+      "answer": "Abrimos de lunes a sábado de 8:00 a 20:00. Domingos de 9:00 a 14:00."
+    },
+    {
+      "question": "¿Hacen envíos a domicilio?",
+      "answer": "Sí, hacemos envíos dentro de la ciudad con un costo fijo de $3. Pedidos antes de las 18:00 se entregan el mismo día."
+    },
+    {
+      "question": "¿Qué métodos de pago aceptan?",
+      "answer": "Aceptamos efectivo, tarjeta de débito/crédito y transferencia."
+    },
+    {
+      "question": "¿Tienen opciones sin gluten?",
+      "answer": "Sí, contamos con una línea de panes y postres sin gluten disponibles bajo pedido con 24h de anticipación."
+    },
+    {
+      "question": "¿Puedo hacer pedidos personalizados para eventos?",
+      "answer": "Sí, hacemos tortas y mesas de postres personalizadas. Te recomendamos contactarnos con al menos 3 días de anticipación."
+    },
+    {
+      "question": "¿Dónde están ubicados?",
+      "answer": "Estamos en Av. Siempre Viva 123, a dos cuadras de la plaza central."
+    },
+    {
+      "question": "¿Tienen productos veganos?",
+      "answer": "Sí, tenemos una selección de panes y postres veganos, marcados en el mostrador."
+    },
+    {
+      "question": "¿Cómo cancelo o modifico un pedido?",
+      "answer": "Escríbenos por este chat o llámanos con al menos 2 horas de anticipación a la entrega."
+    },
+    {
+      "question": "¿Tienen wifi en el local?",
+      "answer": "Sí, contamos con wifi gratuito para nuestros clientes."
+    },
+    {
+      "question": "¿Hacen catering para empresas?",
+      "answer": "Sí, ofrecemos servicio de catering para reuniones y eventos corporativos. Contáctanos para cotización."
+    }
+  ],
+  "fallbackMessage": "No tengo esa información en este momento. ¿Quieres que te contacte alguien del equipo?",
+  "errorMessage": "Estamos teniendo un problema técnico en este momento. Por favor intenta de nuevo en unos minutos."
+}
