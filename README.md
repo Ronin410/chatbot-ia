@@ -112,6 +112,13 @@ Módulos ya definidos, pendientes de implementación al llegar el pedido:
 
 ---
 
+## Arquitectura
+
+[`docs/arquitectura.html`](./docs/arquitectura.html) — diagramas de flujo, de
+proceso (confirmación antes de escribir en la base) y de infraestructura,
+con las piezas marcadas según en qué nivel del paquete se activan. Ábrelo
+directo en el navegador (no necesita servidor).
+
 ## Estructura de carpetas
 
 ```

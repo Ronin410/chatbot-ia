@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planos del Chatbot — Arquitectura</title>
+<style>
+  :root{
+    --bg:#eef1f0; --surface:#ffffff; --surface-2:#e3e8e7;
+    --ink:#14232b; --ink-dim:#56666d;
+    --border:#c7d1d1; --border-strong:#8fa2a3;
+    --basic:#45535a; --basic-soft:#e6e9ea;
+    --standard:#1a7a5a; --standard-soft:#e1f2ea;
+    --premium:#b5541f; --premium-soft:#f8e7d8;
+    --grid-line: rgba(20,35,43,.055);
+    --font-display:'IBM Plex Sans Condensed','Arial Narrow',sans-serif;
+    --font-body:'IBM Plex Sans',system-ui,sans-serif;
+    --font-mono:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0e1a1f; --surface:#142329; --surface-2:#1b2d33;
+      --ink:#e7eef0; --ink-dim:#9db0b5;
+      --border:#2c4048; --border-strong:#3d5760;
+      --basic:#9fb0b5; --basic-soft:#1b2d33;
+      --standard:#3fbf93; --standard-soft:#122f27;
+      --premium:#e08a4d; --premium-soft:#3a2415;
+      --grid-line: rgba(231,238,240,.05);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e1a1f; --surface:#142329; --surface-2:#1b2d33;
+    --ink:#e7eef0; --ink-dim:#9db0b5;
+    --border:#2c4048; --border-strong:#3d5760;
+    --basic:#9fb0b5; --basic-soft:#1b2d33;
+    --standard:#3fbf93; --standard-soft:#122f27;
+    --premium:#e08a4d; --premium-soft:#3a2415;
+    --grid-line: rgba(231,238,240,.05);
+  }
+
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{
+    margin:0; background:var(--bg) center/40px 40px;
+    background-image:
+      repeating-linear-gradient(0deg, var(--grid-line) 0 1px, transparent 1px 40px),
+      repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px 40px);
+    color:var(--ink); font-family:var(--font-body);
+  }
+  img{max-width:100%;}
+  [hidden]{display:none!important;}
+  .wrap{max-width:1180px; margin:0 auto; padding:56px 24px 80px;}
+
+  .eyebrow{
+    font-family:var(--font-mono); font-size:11.5px; font-weight:500;
+    letter-spacing:.12em; text-transform:uppercase; color:var(--ink-dim);
+    margin:0 0 10px;
+  }
+  h1{
+    font-family:var(--font-display); font-weight:700; text-wrap:balance;
+    font-size:clamp(30px,4.4vw,46px); line-height:1.06; margin:0 0 16px; letter-spacing:-.01em;
+  }
+  h2{
+    font-family:var(--font-display); font-weight:600; font-size:clamp(21px,2.6vw,26px);
+    margin:0 0 8px; letter-spacing:-.005em;
+  }
+  .lede{
+    max-width:66ch; font-size:16.5px; line-height:1.6; color:var(--ink-dim); margin:0;
+  }
+  .framing{max-width:68ch; font-size:15px; line-height:1.65; color:var(--ink-dim); margin:0 0 22px;}
+
+  header{
+    border-bottom:1px solid var(--border); padding-bottom:30px; margin-bottom:44px;
+  }
+
+  .legend{
+    display:flex; flex-wrap:wrap; gap:14px 28px; align-items:center;
+    margin-top:26px; padding-top:22px; border-top:1px dashed var(--border);
+  }
+  .tier-chips{display:flex; flex-wrap:wrap; gap:8px;}
+  .chip{
+    font-family:var(--font-mono); font-size:11px; font-weight:500;
+    padding:5px 10px 5px 9px; border-radius:3px; border:1px solid var(--border-strong);
+    white-space:nowrap; background:var(--surface);
+  }
+  .chip-basic{border-left:4px solid var(--basic);}
+  .chip-standard{border-left:4px solid var(--standard); color:var(--standard);}
+  .chip-premium{border-left:4px solid var(--premium); color:var(--premium);}
+  .line-legend{
+    display:flex; gap:18px; flex-wrap:wrap; font-family:var(--font-mono);
+    font-size:11px; color:var(--ink-dim);
+  }
+  .line-legend span{display:inline-flex; align-items:center; gap:7px;}
+  .sw{width:22px; height:0; border-top:1.6px solid var(--ink-dim); display:inline-block;}
+  .sw-dashed{border-top-style:dashed;}
+  .legend-note{
+    flex-basis:100%; font-family:var(--font-mono); font-size:11px; color:var(--ink-dim);
+  }
+
+  section{margin:0 0 64px;}
+  section:last-of-type{margin-bottom:0;}
+
+  figure{margin:0; background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:22px 20px 18px;}
+  figure svg{display:block; width:100%; height:auto; max-width:100%;}
+  figcaption{
+    font-size:13.5px; line-height:1.55; color:var(--ink-dim); margin-top:16px;
+    padding-top:14px; border-top:1px solid var(--border); max-width:76ch;
+  }
+  figcaption strong{color:var(--ink); font-weight:600;}
+
+  /* --- diagram node styling (shared across the three inline SVGs) --- */
+  svg{color:var(--ink);}
+  .node rect{fill:var(--surface); stroke:var(--border-strong); stroke-width:1.5;}
+  .node.basic rect{stroke:var(--basic);}
+  .node.standard rect{stroke:var(--standard);}
+  .node.premium rect{stroke:var(--premium);}
+  .node.external rect{fill:var(--surface-2); stroke:var(--ink-dim); stroke-dasharray:5 4;}
+  .node.dim rect{fill:var(--surface-2);}
+  .node.safe rect{fill:var(--standard-soft); stroke:var(--standard);}
+  .node.write rect{fill:var(--premium-soft); stroke:var(--premium); stroke-width:2;}
+  .node.end rect{fill:none; stroke:var(--border-strong); stroke-dasharray:4 4; rx:20; ry:20;}
+  .node.end.write rect{stroke:var(--premium); fill:var(--premium-soft); stroke-dasharray:0;}
+  .node.end.safe rect{stroke:var(--standard); fill:var(--standard-soft); stroke-dasharray:0;}
+  .node-title{font-family:var(--font-display); font-weight:600; fill:var(--ink); font-size:13.5px;}
+  .node-sub{font-family:var(--font-mono); fill:var(--ink-dim); font-size:10.6px;}
+  .tier-tag{font-family:var(--font-mono); font-size:8.6px; font-weight:600; letter-spacing:.06em;}
+  .tier-tag.standard{fill:var(--standard);}
+  .tier-tag.premium{fill:var(--premium);}
+  .store-line{stroke:var(--border-strong); stroke-width:1;}
+  .decision polygon{fill:var(--surface-2); stroke:var(--border-strong); stroke-width:1.5;}
+  .decision-text{font-family:var(--font-display); font-weight:600; fill:var(--ink); font-size:12.6px; text-anchor:middle;}
+  .edge{stroke:var(--ink-dim); stroke-width:1.4; fill:none;}
+  .edge.dashed{stroke-dasharray:6 5;}
+  .edge.arrow{marker-end:url(#arrow);}
+  .edge.bidir{marker-start:url(#arrow); marker-end:url(#arrow);}
+  .dot{fill:var(--ink-dim);}
+  .edge-label{font-family:var(--font-mono); font-size:10.4px; fill:var(--ink-dim);}
+  .edge-label.strong{fill:var(--ink); font-weight:500;}
+  .boundary{fill:none; stroke:var(--border-strong); stroke-dasharray:7 5; stroke-width:1.6;}
+  .boundary-label{font-family:var(--font-mono); font-size:10.6px; fill:var(--ink-dim);}
+  .boundary-eyebrow{font-family:var(--font-mono); font-size:10.6px; font-weight:600; letter-spacing:.1em; fill:var(--ink);}
+  .container-box rect{fill:var(--surface-2); stroke-width:1.6;}
+  .container-box.basic rect{stroke:var(--basic);}
+  .container-box.premium rect{stroke:var(--premium);}
+  .container-title{font-family:var(--font-display); font-weight:600; font-size:15px; fill:var(--ink);}
+  .container-sub{font-family:var(--font-mono); font-size:10.6px; fill:var(--ink-dim);}
+  .inner-row rect{fill:var(--surface); stroke:var(--border);}
+  .quote{font-family:var(--font-mono); font-style:normal; font-size:10.6px; fill:var(--ink-dim);}
+
+  table{width:100%; border-collapse:collapse; font-size:14px;}
+  thead th{
+    text-align:left; font-family:var(--font-mono); font-size:11px; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--ink-dim); font-weight:500;
+    padding:0 14px 10px; border-bottom:1px solid var(--border-strong);
+  }
+  tbody td{padding:14px 14px; border-bottom:1px solid var(--border); vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  td.branch{font-family:var(--font-mono); font-size:12.5px; white-space:nowrap;}
+  td .tier-word{font-weight:600;}
+  td .tier-word.basic{color:var(--basic);}
+  td .tier-word.standard{color:var(--standard);}
+  td .tier-word.premium{color:var(--premium);}
+  .table-wrap{overflow-x:auto; background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:6px 8px;}
+
+  footer{
+    margin-top:60px; padding-top:20px; border-top:1px solid var(--border);
+    font-family:var(--font-mono); font-size:11.5px; color:var(--ink-dim);
+  }
+
+  @media (max-width:640px){
+    .wrap{padding:36px 16px 60px;}
+    figure{padding:16px 12px 14px;}
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Mapa del sistema</p>
+    <h1>Chatbot IA — arquitectura y flujos</h1>
+    <p class="lede">Cómo viaja un mensaje desde el widget o WhatsApp hasta la respuesta, qué decide el bot antes de tocar una base de datos, y en qué máquinas corre cada pieza — todo marcado según en qué nivel del paquete se activa.</p>
+
+    <div class="legend">
+      <div class="tier-chips">
+        <span class="chip chip-basic">Sin etiqueta — Basic · $80</span>
+        <span class="chip chip-standard">STANDARD — $180</span>
+        <span class="chip chip-premium">PREMIUM — $350</span>
+      </div>
+      <div class="line-legend">
+        <span><i class="sw"></i> conexión dentro de nuestro código/infra</span>
+        <span><i class="sw sw-dashed"></i> cruza a internet / un tercero</span>
+      </div>
+      <p class="legend-note">Una pieza sin etiqueta de color existe desde Basic. STANDARD/PREMIUM marcan lo que cada nivel agrega encima.</p>
+    </div>
+  </header>
+
+  <section>
+    <p class="eyebrow">01 · Diagrama de flujo</p>
+    <h2>De un mensaje a una respuesta</h2>
+    <p class="framing">El mismo <code>chatEngine</code> atiende los dos canales. Adentro arma el prompt, consulta RAG y las acciones solo si el nivel del cliente las tiene activas, llama al modelo, y devuelve el texto para que cada canal lo entregue a su manera.</p>
+
+    <figure>
+      <svg viewBox="0 0 1040 750" role="img" aria-label="Un mensaje entra por el widget web o por WhatsApp, chatEngine arma el prompt con RAG y acciones si están activas, llama al modelo de IA, y la respuesta vuelve por el mismo canal.">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 Z" style="fill:var(--ink-dim)"/>
+          </marker>
+        </defs>
+
+        <!-- top actors -->
+        <g class="node basic"><rect x="40" y="20" width="260" height="52" rx="4"/>
+          <text class="node-title" x="170" y="42" text-anchor="middle">Visitante</text>
+          <text class="node-sub" x="170" y="58" text-anchor="middle">navegador web</text></g>
+        <g class="node basic"><rect x="740" y="20" width="260" height="52" rx="4"/>
+          <text class="node-title" x="870" y="42" text-anchor="middle">Contacto</text>
+          <text class="node-sub" x="870" y="58" text-anchor="middle">WhatsApp</text></g>
+
+        <path class="edge arrow" d="M170,72 L170,104"/>
+        <path class="edge arrow" d="M870,72 L870,104"/>
+
+        <!-- channel adapters -->
+        <g class="node basic"><rect x="40" y="104" width="260" height="52" rx="4"/>
+          <text class="node-title" x="170" y="126" text-anchor="middle">widget/chatbot.js</text>
+          <text class="node-sub" x="170" y="142" text-anchor="middle">POST /chat</text></g>
+        <g class="node standard"><rect x="740" y="104" width="260" height="52" rx="4"/>
+          <text class="node-title" x="870" y="126" text-anchor="middle">Twilio (WhatsApp)</text>
+          <text class="node-sub" x="870" y="142" text-anchor="middle">POST /webhooks/whatsapp</text>
+          <text class="tier-tag standard" x="990" y="118" text-anchor="end">STANDARD</text></g>
+
+        <polyline class="edge" points="170,156 170,176 520,176"/>
+        <polyline class="edge" points="870,156 870,176 520,176"/>
+        <circle class="dot" cx="520" cy="176" r="3.5"/>
+        <path class="edge arrow" d="M520,176 L520,200"/>
+        <text class="edge-label" x="534" y="192">generateReply({message, history, channel})</text>
+
+        <!-- chatEngine boundary -->
+        <rect class="boundary" x="20" y="200" width="1000" height="340" rx="8"/>
+        <text class="boundary-eyebrow" x="40" y="222">EL ORQUESTADOR</text>
+        <text class="boundary-label" x="40" y="238">chatEngine.generateReply() — src/channels/chatEngine.ts</text>
+
+        <path class="edge arrow" d="M520,200 L520,246"/>
+
+        <g class="node basic"><rect x="380" y="246" width="280" height="48" rx="4"/>
+          <text class="node-title" x="520" y="266" text-anchor="middle">Construir prompt</text>
+          <text class="node-sub" x="520" y="282" text-anchor="middle">systemPrompt.ts ← business-config.json</text></g>
+
+        <path class="edge" d="M520,294 L520,360"/>
+        <path class="edge" d="M520,360 L520,470"/>
+        <circle class="dot" cx="520" cy="360" r="3.5"/>
+
+        <path class="edge arrow" d="M520,360 L300,360"/>
+        <text class="edge-label" x="330" y="350">si hay documentos indexados</text>
+        <path class="edge arrow" d="M520,360 L740,360"/>
+        <text class="edge-label" x="622" y="350">si hay acciones activas (tools)</text>
+
+        <g class="node standard"><rect x="40" y="336" width="260" height="48" rx="4"/>
+          <text class="node-title" x="170" y="356" text-anchor="middle">RAG — retrieveContext()</text>
+          <text class="node-sub" x="170" y="372" text-anchor="middle">src/rag/index.ts</text>
+          <text class="tier-tag standard" x="292" y="348" text-anchor="end">STANDARD</text></g>
+        <g class="node premium"><rect x="740" y="336" width="260" height="48" rx="4"/>
+          <text class="node-title" x="870" y="356" text-anchor="middle">Acciones — tool loop</text>
+          <text class="node-sub" x="870" y="372" text-anchor="middle">src/actions/index.ts</text>
+          <text class="tier-tag premium" x="992" y="348" text-anchor="end">PREMIUM</text></g>
+
+        <path class="edge arrow" d="M170,384 L170,400"/>
+        <path class="edge arrow" d="M870,384 L870,400"/>
+
+        <g class="node standard dim"><rect x="40" y="400" width="260" height="48" rx="4"/>
+          <line class="store-line" x1="56" y1="412" x2="284" y2="412"/>
+          <line class="store-line" x1="56" y1="417" x2="284" y2="417"/>
+          <text class="node-title" x="170" y="434" text-anchor="middle">rag-index.json</text>
+          <text class="node-sub" x="170" y="447" text-anchor="middle">vectores + chunks</text></g>
+        <g class="node premium dim"><rect x="740" y="400" width="260" height="48" rx="4"/>
+          <line class="store-line" x1="756" y1="412" x2="984" y2="412"/>
+          <line class="store-line" x1="756" y1="417" x2="984" y2="417"/>
+          <text class="node-title" x="870" y="434" text-anchor="middle">PostgreSQL</text>
+          <text class="node-sub" x="870" y="447" text-anchor="middle">citas · pedidos</text></g>
+
+        <path class="edge arrow" d="M380,496 L300,496"/>
+        <text class="edge-label" x="20" y="486">log, no bloquea</text>
+        <g class="node standard"><rect x="40" y="470" width="260" height="52" rx="4"/>
+          <text class="node-title" x="170" y="492" text-anchor="middle">Registrar conversación</text>
+          <text class="node-sub" x="170" y="508" text-anchor="middle">conversationStore.logConversation()</text>
+          <text class="tier-tag standard" x="292" y="482" text-anchor="end">STANDARD</text></g>
+
+        <g class="node basic"><rect x="380" y="470" width="280" height="52" rx="4"/>
+          <text class="node-title" x="520" y="492" text-anchor="middle">Cliente IA</text>
+          <text class="node-sub" x="520" y="508" text-anchor="middle">complete() / completeWithTools()</text></g>
+
+        <path class="edge dashed bidir" d="M660,496 L740,496"/>
+        <text class="edge-label" x="700" y="486" text-anchor="middle">prompt (+tools)</text>
+        <text class="edge-label" x="700" y="520" text-anchor="middle">texto / tool_calls</text>
+        <g class="node external"><rect x="740" y="470" width="260" height="52" rx="4"/>
+          <text class="node-title" x="870" y="492" text-anchor="middle">OpenAI / Anthropic</text>
+          <text class="node-sub" x="870" y="508" text-anchor="middle">chat + tools · HTTPS</text></g>
+
+        <path class="edge" d="M520,522 L520,540"/>
+        <path class="edge arrow" d="M520,540 L520,570"/>
+        <text class="edge-label strong" x="534" y="560">return { reply }</text>
+
+        <path class="edge" d="M520,570 L520,586"/>
+        <circle class="dot" cx="520" cy="586" r="3.5"/>
+        <polyline class="edge arrow" points="520,586 170,586 170,600"/>
+        <polyline class="edge arrow" points="520,586 870,586 870,600"/>
+
+        <g class="node basic"><rect x="40" y="600" width="260" height="48" rx="4"/>
+          <text class="node-title" x="170" y="620" text-anchor="middle">res.json({ reply })</text>
+          <text class="node-sub" x="170" y="636" text-anchor="middle">vía POST /chat</text></g>
+        <g class="node standard"><rect x="740" y="600" width="260" height="48" rx="4"/>
+          <text class="node-title" x="870" y="620" text-anchor="middle">adapter.sendMessage()</text>
+          <text class="node-sub" x="870" y="636" text-anchor="middle">vía Twilio API</text></g>
+
+        <path class="edge arrow" d="M170,648 L170,668"/>
+        <path class="edge arrow" d="M870,648 L870,668"/>
+
+        <g class="node basic"><rect x="40" y="668" width="260" height="52" rx="4"/>
+          <text class="node-title" x="170" y="690" text-anchor="middle">Visitante</text>
+          <text class="node-sub" x="170" y="706" text-anchor="middle">ve la respuesta en el widget</text></g>
+        <g class="node standard"><rect x="740" y="668" width="260" height="52" rx="4"/>
+          <text class="node-title" x="870" y="690" text-anchor="middle">Contacto</text>
+          <text class="node-sub" x="870" y="706" text-anchor="middle">recibe el mensaje por WhatsApp</text></g>
+      </svg>
+      <figcaption><strong>Una entrada, un orquestador, dos salidas.</strong> El widget y WhatsApp llegan a controllers distintos, pero ambos delegan en el mismo <code>chatEngine</code>: arma el prompt, agrega contexto de RAG y de las acciones cuando el nivel del cliente las tiene activas, llama al modelo, y — si Standard+ está prendido — deja constancia en SQLite antes de contestar.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <p class="eyebrow">02 · Diagrama de proceso</p>
+    <h2>Cómo se agenda una cita sin que el bot se equivoque</h2>
+    <p class="framing">De las dos acciones de Premium, <code>consultar_pedido</code> solo lee. <code>crear_cita</code> escribe, así que sigue un proceso de dos vueltas: la primera nunca toca la base, la segunda solo se ejecuta si el usuario confirmó explícitamente.</p>
+
+    <figure>
+      <svg viewBox="0 0 1000 800" role="img" aria-label="crear_cita nunca escribe en la base la primera vez: devuelve un resumen pendiente de confirmación, y solo inserta el registro real cuando el usuario confirma en un mensaje posterior.">
+        <defs>
+          <marker id="arrow2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 Z" style="fill:var(--ink-dim)"/>
+          </marker>
+        </defs>
+        <style>#p2 .edge{marker-end:url(#arrow2);}</style>
+
+        <g id="p2">
+        <g class="node basic"><rect x="320" y="20" width="360" height="56" rx="4"/>
+          <text class="node-title" x="500" y="42" text-anchor="middle">Mensaje del usuario</text>
+          <text class="quote" x="500" y="60" text-anchor="middle">"Quiero agendar una torta para el 1 de octubre"</text></g>
+
+        <path class="edge" d="M500,76 L500,86"/>
+
+        <g class="decision"><polygon points="500,86 655,146 500,206 345,146"/>
+          <text class="decision-text" x="500" y="141">¿El modelo necesita</text>
+          <text class="decision-text" x="500" y="157">ejecutar una acción?</text></g>
+
+        <path class="edge" d="M345,146 L330,146"/>
+        <text class="edge-label" x="336" y="132" text-anchor="end">No</text>
+        <g class="node basic"><rect x="50" y="120" width="280" height="52" rx="4"/>
+          <text class="node-title" x="190" y="142" text-anchor="middle">Responde con texto</text>
+          <text class="node-sub" x="190" y="158" text-anchor="middle">FAQ / documentos (RAG)</text></g>
+        <path class="edge" d="M190,172 L190,192"/>
+        <g class="node end"><rect x="50" y="192" width="280" height="36" rx="18"/>
+          <text class="node-sub" x="190" y="215" text-anchor="middle">Fin del turno</text></g>
+
+        <path class="edge" d="M500,206 L500,236"/>
+        <text class="edge-label" x="514" y="224">Sí</text>
+
+        <g class="decision"><polygon points="500,236 650,296 500,356 350,296"/>
+          <text class="decision-text" x="500" y="291">¿Es de solo lectura?</text>
+          <text class="decision-text" x="500" y="307">(consultar_pedido)</text></g>
+
+        <path class="edge" d="M650,296 L670,296"/>
+        <text class="edge-label" x="664" y="282">Sí</text>
+        <g class="node premium"><rect x="670" y="270" width="280" height="52" rx="4"/>
+          <text class="node-title" x="810" y="292" text-anchor="middle">Ejecuta contra PostgreSQL</text>
+          <text class="node-sub" x="810" y="308" text-anchor="middle">SELECT ... (sin confirmar)</text>
+          <text class="tier-tag premium" x="942" y="284" text-anchor="end">PREMIUM</text></g>
+        <path class="edge" d="M810,322 L810,342"/>
+        <g class="node premium"><rect x="670" y="342" width="280" height="52" rx="4"/>
+          <text class="node-title" x="810" y="364" text-anchor="middle">Responde con datos reales</text>
+          <text class="node-sub" x="810" y="380" text-anchor="middle">estatus real del pedido</text></g>
+        <path class="edge" d="M810,394 L810,414"/>
+        <g class="node end safe"><rect x="670" y="414" width="280" height="36" rx="18"/>
+          <text class="node-sub" x="810" y="437" text-anchor="middle">Fin del turno</text></g>
+
+        <path class="edge" d="M500,356 L500,386"/>
+        <text class="edge-label" x="514" y="374">No — irreversible</text>
+
+        <g class="node premium"><rect x="300" y="386" width="400" height="52" rx="4"/>
+          <text class="node-title" x="500" y="406" text-anchor="middle">Llama a la acción</text>
+          <text class="node-sub" x="500" y="422" text-anchor="middle">crear_cita({ ...datos, confirmado: false })</text>
+          <text class="tier-tag premium" x="692" y="398" text-anchor="end">PREMIUM</text></g>
+
+        <path class="edge" d="M500,438 L500,464"/>
+        <g class="node premium"><rect x="340" y="464" width="320" height="44" rx="4"/>
+          <text class="node-sub" x="500" y="490" text-anchor="middle">src/actions/crearCita.ts → execute()</text></g>
+
+        <path class="edge" d="M500,508 L500,534"/>
+
+        <g class="decision"><polygon points="500,534 650,594 500,654 350,594"/>
+          <text class="decision-text" x="500" y="589">¿confirmado</text>
+          <text class="decision-text" x="500" y="605">=== true?</text></g>
+
+        <path class="edge" d="M350,594 L330,594"/>
+        <text class="edge-label" x="336" y="580" text-anchor="end">No — primera vez</text>
+        <g class="node safe"><rect x="50" y="568" width="280" height="52" rx="4"/>
+          <text class="node-title" x="190" y="590" text-anchor="middle">NO escribe en la base</text>
+          <text class="node-sub" x="190" y="606" text-anchor="middle">status: pendiente_confirmacion</text></g>
+        <path class="edge" d="M190,620 L190,640"/>
+        <g class="node basic"><rect x="50" y="640" width="280" height="52" rx="4"/>
+          <text class="node-title" x="190" y="662" text-anchor="middle">El bot pide confirmación</text>
+          <text class="node-sub" x="190" y="678" text-anchor="middle">muestra el resumen al usuario</text></g>
+        <path class="edge" d="M190,692 L190,712"/>
+        <g class="node end"><rect x="50" y="712" width="280" height="40" rx="20"/>
+          <text class="node-sub" x="190" y="737" text-anchor="middle">Fin — espera respuesta</text></g>
+
+        <path style="stroke:var(--ink-dim); stroke-width:1.4; fill:none; stroke-dasharray:6 5" marker-end="url(#arrow2)"
+              d="M65,752 C15,610 15,140 318,50"/>
+        <text class="edge-label" x="14" y="380" transform="rotate(-90 14 380)" text-anchor="middle">↺ nuevo mensaje del usuario, confirmando</text>
+
+        <path class="edge" d="M650,594 L670,594"/>
+        <text class="edge-label" x="664" y="580">Sí — segunda vez</text>
+        <g class="node write"><rect x="670" y="568" width="280" height="52" rx="4"/>
+          <text class="node-title" x="810" y="590" text-anchor="middle">SÍ escribe en la base</text>
+          <text class="node-sub" x="810" y="606" text-anchor="middle">INSERT INTO citas ... RETURNING id</text></g>
+        <path class="edge" d="M810,620 L810,640"/>
+        <g class="node premium"><rect x="670" y="640" width="280" height="52" rx="4"/>
+          <text class="node-title" x="810" y="662" text-anchor="middle">Responde confirmando la cita</text>
+          <text class="node-sub" x="810" y="678" text-anchor="middle">incluye el id real de la base</text></g>
+        <path class="edge" d="M810,692 L810,712"/>
+        <g class="node end write"><rect x="670" y="712" width="280" height="40" rx="20"/>
+          <text class="node-sub" x="810" y="737" text-anchor="middle" style="fill:var(--premium)">Fin — cita agendada</text></g>
+        </g>
+      </svg>
+      <figcaption><strong>Dos vueltas, no una.</strong> El modelo tiene prohibido escribir en la primera llamada: <code>crear_cita</code> solo devuelve un resumen (<code>pendiente_confirmacion</code>) para que el bot se lo muestre al usuario. El <code>INSERT</code> real ocurre únicamente cuando el usuario confirma en un mensaje aparte y el modelo vuelve a llamar la acción con <code>confirmado: true</code>.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <p class="eyebrow">03 · Diagrama de infraestructura</p>
+    <h2>Qué corre dónde</h2>
+    <p class="framing">Todo el paquete vive en dos contenedores de un mismo <code>docker compose</code>. El navegador, WhatsApp/Twilio y los proveedores de IA están del otro lado de internet — nunca corren en tu servidor.</p>
+
+    <figure>
+      <svg viewBox="0 0 1080 520" role="img" aria-label="El paquete corre en dos contenedores dentro de un mismo docker compose: chatbot, siempre presente, y postgres desde Premium. Navegador, WhatsApp/Twilio, OpenAI y Anthropic viven fuera, al otro lado de internet.">
+        <defs>
+          <marker id="arrow3" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 Z" style="fill:var(--ink-dim)"/>
+          </marker>
+        </defs>
+        <style>#p3 .edge{marker-end:url(#arrow3);} #p3 .edge.bidir{marker-start:url(#arrow3); marker-end:url(#arrow3);}</style>
+        <g id="p3">
+
+        <g class="node external"><rect x="40" y="20" width="230" height="56" rx="4"/>
+          <text class="node-title" x="155" y="44" text-anchor="middle">Navegador</text>
+          <text class="node-sub" x="155" y="60" text-anchor="middle">del visitante</text></g>
+        <g class="node external"><rect x="296" y="20" width="230" height="56" rx="4"/>
+          <text class="node-title" x="411" y="44" text-anchor="middle">WhatsApp</text>
+          <text class="node-sub" x="411" y="60" text-anchor="middle">vía Twilio</text></g>
+        <g class="node external"><rect x="552" y="20" width="230" height="56" rx="4"/>
+          <text class="node-title" x="667" y="44" text-anchor="middle">OpenAI API</text>
+          <text class="node-sub" x="667" y="60" text-anchor="middle">chat · tools · embeddings</text></g>
+        <g class="node external"><rect x="808" y="20" width="230" height="56" rx="4"/>
+          <text class="node-title" x="923" y="44" text-anchor="middle">Anthropic API</text>
+          <text class="node-sub" x="923" y="60" text-anchor="middle">chat · tools</text></g>
+
+        <path class="edge dashed" d="M155,76 L150,190"/>
+        <text class="edge-label" x="60" y="108">GET /widget</text>
+        <text class="edge-label" x="60" y="120">POST /chat</text>
+
+        <path class="edge dashed bidir" d="M411,76 L350,190"/>
+        <text class="edge-label" x="330" y="108">POST /webhooks/whatsapp</text>
+        <text class="edge-label" x="330" y="120">→ Twilio: enviar mensaje</text>
+
+        <path class="edge dashed bidir" d="M667,76 L500,190"/>
+        <text class="edge-label" x="615" y="108" text-anchor="end">HTTPS</text>
+        <text class="edge-label" x="615" y="120" text-anchor="end">Bearer API key</text>
+
+        <path class="edge dashed bidir" d="M923,76 L580,190"/>
+        <text class="edge-label" x="860" y="108" text-anchor="end">HTTPS</text>
+        <text class="edge-label" x="860" y="120" text-anchor="end">Bearer API key</text>
+
+        <rect class="boundary" x="20" y="140" width="1040" height="340" rx="8"/>
+        <text class="boundary-eyebrow" x="40" y="162">TU SERVIDOR</text>
+        <text class="boundary-label" x="40" y="178">docker compose up · docker-compose.yml</text>
+
+        <g class="container-box basic"><rect x="60" y="190" width="560" height="260" rx="6"/>
+          <text class="container-title" x="82" y="216">chatbot</text>
+          <text class="container-sub" x="82" y="232">node:20-bookworm-slim · expone :3000</text>
+
+          <g class="inner-row"><rect x="90" y="244" width="500" height="40" rx="3"/>
+            <text class="node-title" x="106" y="262">server.ts — Express</text>
+            <text class="node-sub" x="106" y="277">/health · /chat · /widget · /webhooks/whatsapp</text></g>
+
+          <g class="inner-row"><rect x="90" y="294" width="500" height="40" rx="3"/>
+            <text class="node-title" x="106" y="312">volumen (solo lectura)</text>
+            <text class="node-sub" x="106" y="327">business-config.json</text></g>
+
+          <g class="inner-row"><rect x="90" y="344" width="500" height="40" rx="3"/>
+            <text class="node-title" x="106" y="362">carpeta ./data</text>
+            <text class="node-sub" x="106" y="377">rag-index.json · conversations.sqlite</text>
+            <text class="tier-tag standard" x="582" y="358" text-anchor="end">STANDARD</text></g>
+        </g>
+
+        <g class="container-box premium"><rect x="680" y="190" width="340" height="170" rx="6"/>
+          <text class="container-title" x="702" y="216">postgres</text>
+          <text class="container-sub" x="702" y="232">postgres:16-alpine · :5432</text>
+          <text class="tier-tag premium" x="998" y="216" text-anchor="end">PREMIUM</text>
+
+          <g class="inner-row"><rect x="710" y="244" width="280" height="40" rx="3"/>
+            <text class="node-title" x="726" y="262">volumen</text>
+            <text class="node-sub" x="726" y="277">postgres-data</text></g>
+
+          <g class="inner-row"><rect x="710" y="294" width="280" height="40" rx="3"/>
+            <text class="node-title" x="726" y="312">esquema</text>
+            <text class="node-sub" x="726" y="327">citas · pedidos</text></g>
+        </g>
+
+        <path class="edge bidir" d="M620,270 L680,270"/>
+        <text class="edge-label" x="650" y="260" text-anchor="middle">DATABASE_URL</text>
+        <text class="edge-label" x="650" y="292" text-anchor="middle">TCP 5432</text>
+        </g>
+      </svg>
+      <figcaption><strong>Dos contenedores, un compose.</strong> <code>chatbot</code> corre siempre (Basic incluido); <code>postgres</code> se suma cuando el cliente llega a Premium — hasta entonces <code>DATABASE_URL</code> queda vacío y el contenedor de base de datos ni se levanta. Todo lo de afuera del recuadro punteado está en internet, no en tu servidor.</figcaption>
+    </figure>
+  </section>
+
+  <section class="branches">
+    <p class="eyebrow">Referencia</p>
+    <h2>Ramas del repositorio</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Rama</th><th>Nivel</th><th>Piezas nuevas de este diagrama</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="branch">claude/basic-level-scaffold-ezvpl9</td>
+            <td><span class="tier-word basic">Basic · $80</span></td>
+            <td>Widget web, <code>POST /chat</code>, prompt + FAQ desde <code>business-config.json</code>.</td>
+          </tr>
+          <tr>
+            <td class="branch">claude/standard-level-scaffold</td>
+            <td><span class="tier-word standard">Standard · $180</span></td>
+            <td>Canal WhatsApp (Twilio), RAG sobre documentos, multi-idioma, log de conversaciones en SQLite.</td>
+          </tr>
+          <tr>
+            <td class="branch">claude/premium-level-scaffold</td>
+            <td><span class="tier-word premium">Premium · $350</span></td>
+            <td>Function calling (<code>crear_cita</code>, <code>consultar_pedido</code>), PostgreSQL, confirmación antes de escribir.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Chatbot IA — Ronin410/chatbot-ia · diagramas trazados a partir del código de las tres ramas.</footer>
+</div>
+</body>
+</html>
