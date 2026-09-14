@@ -115,6 +115,18 @@ docker compose exec chatbot node dist/db/postgres/migrate.js
    corre `npm run db:migrate` de nuevo (usa `CREATE TABLE IF NOT EXISTS`,
    es seguro repetirlo).
 
+### Cliente con su propio sistema (CRM, plataforma de pedidos)
+
+Si el negocio ya tiene un sistema propio y quiere que el bot escriba ahí
+en vez de en nuestra Postgres, no es "activar algo" — es una integración
+aparte, normalmente cotizada por separado (depende de qué tan buena sea
+la API de ese sistema). Punto de partida:
+[`src/actions/templates/crearPedidoSistemaExterno.ts`](./src/actions/templates/crearPedidoSistemaExterno.ts) —
+mismo patrón de confirmación que `crearCita.ts`, pero llama a una API
+externa (`src/actions/externalApiClient.ts`) en vez de `pool.query(...)`.
+No está registrada por defecto; el checklist para adaptarla a un cliente
+real está en los comentarios del archivo.
+
 No hace falta tocar `chatEngine.ts` ni los clientes de IA: las acciones
 registradas se exponen automáticamente como tools al modelo.
 
@@ -155,7 +167,7 @@ chatbot-ia/
 │   │   └── whatsapp/        # adapter (Twilio) + controller del webhook
 │   ├── ai/                  # clientes OpenAI/Claude con function calling, selector, prompt
 │   ├── rag/                  # chunking, embeddings, vector store, CLI de indexado
-│   ├── actions/               # crear_cita, consultar_pedido (function calling real)
+│   ├── actions/               # crear_cita, consultar_pedido + templates/ (integración con sistema externo)
 │   ├── db/
 │   │   ├── sqliteConversationStore.ts  # log de conversaciones (Standard)
 │   │   └── postgres/                    # pool, schema.sql, CLI de migración (Premium)
