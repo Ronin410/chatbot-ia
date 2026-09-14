@@ -43,6 +43,20 @@ Esto levanta el servidor en `http://localhost:3000`. Para probar el widget
 embebido, abre `widget/index.html` en el navegador (o sírvelo con cualquier
 servidor estático) — ya apunta a `http://localhost:3000/chat`.
 
+> Para instrucciones detalladas de cómo montarlo en local (con Node o con
+> Docker) y qué deberías ver funcionando, ver **[TESTING.md](./TESTING.md)**.
+
+### Con Docker
+
+```bash
+cp .env.example .env
+# completa OPENAI_API_KEY o ANTHROPIC_API_KEY en .env
+docker compose up --build
+```
+
+Ver `TESTING.md` para más detalle (build/run sin compose, montaje de
+`business-config.json`, etc.).
+
 Prueba rápida sin widget:
 
 ```bash
@@ -114,7 +128,10 @@ chatbot-ia/
 │   └── server.ts
 ├── widget/               # widget de chat embebible + demo.html
 ├── n8n-flows/            # exports de flujos n8n si se usan de orquestador
+├── Dockerfile
+├── docker-compose.yml
 ├── .env.example
+├── TESTING.md            # cómo levantarlo en local (Node o Docker) para probar
 └── README.md
 ```
 

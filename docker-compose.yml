@@ -1,0 +1,12 @@
+services:
+  chatbot:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      # Monta tu business-config.json local dentro de la imagen sin
+      # necesidad de reconstruirla al editarlo (útil para probar
+      # distintos negocios/clientes en local).
+      - ./src/config/business-config.json:/app/dist/config/business-config.json:ro
