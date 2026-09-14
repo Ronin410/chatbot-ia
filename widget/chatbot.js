@@ -8,8 +8,13 @@
  *   data-title="Nombre del negocio"
  *   data-greeting="¡Hola! ¿En qué puedo ayudarte?"
  *   data-color="#2563eb"
+ *   data-position="bottom-right"
  *   async
  * ></script>
+ *
+ * data-position acepta "bottom-right" (por defecto), "bottom-left",
+ * "top-right" o "top-left" — útil cuando el sitio ya tiene otro widget
+ * (chat de soporte, botón de WhatsApp, etc.) ocupando esa esquina.
  *
  * Sin dependencias ni frameworks. Mantiene el historial corto de la
  * conversación en memoria del navegador (no hay persistencia entre
@@ -18,7 +23,14 @@
 (function () {
   "use strict";
 
+  var VALID_POSITIONS = ["bottom-right", "bottom-left", "top-right", "top-left"];
   var currentScript = document.currentScript;
+  var rawPosition = (currentScript.getAttribute("data-position") || "bottom-right").toLowerCase();
+  var position = VALID_POSITIONS.indexOf(rawPosition) !== -1 ? rawPosition : "bottom-right";
+  var positionParts = position.split("-"); // ["bottom"|"top", "right"|"left"]
+  var vSide = positionParts[0]; // "bottom" | "top"
+  var hSide = positionParts[1]; // "right" | "left"
+
   var config = {
     apiUrl: currentScript.getAttribute("data-api-url") || "/chat",
     title: currentScript.getAttribute("data-title") || "Asistente virtual",
@@ -37,9 +49,12 @@
   function injectStyles() {
     var style = document.createElement("style");
     style.textContent =
-      ".cbw-root{position:fixed;bottom:20px;right:20px;z-index:999999;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}" +
+      ".cbw-root{position:fixed;" + vSide + ":20px;" + hSide + ":20px;z-index:999999;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}" +
       ".cbw-bubble{width:56px;height:56px;border-radius:50%;background:" + config.color + ";color:#fff;border:none;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.2);font-size:24px}" +
-      ".cbw-window{display:none;flex-direction:column;width:320px;max-width:90vw;height:440px;max-height:70vh;background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.25);overflow:hidden;position:absolute;bottom:70px;right:0}" +
+      // La ventana se abre "hacia adentro" de la pantalla: si la burbuja está
+      // abajo, la ventana se ancla arriba de ella (y viceversa); mismo lado
+      // horizontal que la burbuja, para que el borde quede alineado con ella.
+      ".cbw-window{display:none;flex-direction:column;width:320px;max-width:90vw;height:440px;max-height:70vh;background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.25);overflow:hidden;position:absolute;" + (vSide === "bottom" ? "bottom:70px;" : "top:70px;") + (hSide === "right" ? "right:0;" : "left:0;") + "}" +
       ".cbw-window.cbw-open{display:flex}" +
       ".cbw-header{background:" + config.color + ";color:#fff;padding:12px 14px;font-weight:600;display:flex;justify-content:space-between;align-items:center}" +
       ".cbw-close{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;line-height:1}" +
